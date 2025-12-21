@@ -71,12 +71,12 @@ services:
   - type: redis
     name: analyzer-redis
     region: singapore
-    plan: free
+    plan: starter
     ipAllowList: [] # Access from internal services only
 
 databases:
   - name: analyzer-db
     region: singapore
-    plan: starter
+    plan: basic
     databaseName: analyzer
     user: analyzer
