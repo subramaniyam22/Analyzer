@@ -77,6 +77,6 @@ services:
 databases:
   - name: analyzer-db
     region: singapore
-    plan: Basic-512mb
+    plan: Basic-1gb
     databaseName: analyzer
     user: analyzer
