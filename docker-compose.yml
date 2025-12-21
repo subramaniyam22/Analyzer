@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  db:
+    image: ankane/pgvector:latest
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-analyzer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-analyzer_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-analyzer_db}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U analyzer -d analyzer_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-analyzer_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-analyzer_minio_pass}
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./data/minio:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://analyzer:analyzer_pass@db:5432/analyzer_db
+      REDIS_URL: redis://redis:6379/0
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: analyzer_minio
+      MINIO_SECRET_KEY: analyzer_minio_pass
+      MINIO_BUCKET_NAME: analyzer-uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    command: celery -A worker.celery_app.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://analyzer:analyzer_pass@db:5432/analyzer_db
+      REDIS_URL: redis://redis:6379/0
+      MINIO_URL: http://minio:9000
+      MINIO_ACCESS_KEY: analyzer_minio
+      MINIO_SECRET_KEY: analyzer_minio_pass
+      MINIO_BUCKET_NAME: analyzer-uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      - backend
