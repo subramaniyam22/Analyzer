@@ -59,11 +59,11 @@ services:
     startCommand: npm start
     rootDir: frontend
     envVars:
-      - key: NEXT_PUBLIC_API_URL
+      - key: BACKEND_URL
         fromService:
           type: web
           name: analyzer-backend
-          property: url
+          property: hostport
       - key: NODE_VERSION
         value: 20.11.0
 
