@@ -63,7 +63,7 @@ services:
         fromService:
           type: web
           name: analyzer-backend
-          property: hostport
+          property: host
       - key: NODE_VERSION
         value: 20.11.0
 
