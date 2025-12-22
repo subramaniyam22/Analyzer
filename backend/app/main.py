@@ -17,20 +17,41 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
-# Create tables and extension with error handling
-try:
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
-except Exception as e:
-    print(f"Warning: Could not create vector extension (may already exist): {e}")
-
-try:
-    models.Base.metadata.create_all(bind=engine)
-except Exception as e:
-    print(f"Warning: Could not create tables (may already exist): {e}")
-
 app = FastAPI(title="Analyzer API")
+
+# Health check endpoint
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "service": "analyzer-backend"}
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on application startup."""
+    print("=" * 50)
+    print("Starting Analyzer Backend...")
+    print("=" * 50)
+    
+    # Create vector extension with error handling
+    try:
+        print("Creating vector extension...")
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+        print("✓ Vector extension ready")
+    except Exception as e:
+        print(f"⚠ Vector extension: {e}")
+    
+    # Create all tables
+    try:
+        print("Creating database tables...")
+        models.Base.metadata.create_all(bind=engine)
+        print("✓ Database tables ready")
+    except Exception as e:
+        print(f"⚠ Database tables: {e}")
+    
+    print("=" * 50)
+    print("✅ Backend initialization complete!")
+    print("=" * 50)
 
 app.add_middleware(
     CORSMiddleware,
