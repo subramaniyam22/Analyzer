@@ -17,12 +17,18 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
-# Create tables and extension
-with engine.connect() as conn:
-    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    conn.commit()
+# Create tables and extension with error handling
+try:
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+except Exception as e:
+    print(f"Warning: Could not create vector extension (may already exist): {e}")
 
-models.Base.metadata.create_all(bind=engine)
+try:
+    models.Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Warning: Could not create tables (may already exist): {e}")
 
 app = FastAPI(title="Analyzer API")
 
