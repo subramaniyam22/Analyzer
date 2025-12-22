@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timedelta
 
 from sqlalchemy import text
+import asyncio
 
 app = FastAPI(title="Analyzer API")
 
@@ -24,34 +25,54 @@ app = FastAPI(title="Analyzer API")
 def health_check():
     return {"status": "healthy", "service": "analyzer-backend"}
 
+async def initialize_database():
+    """Initialize database with retries."""
+    max_retries = 5
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"\n{'='*50}")
+            print(f"Database initialization attempt {attempt + 1}/{max_retries}")
+            print(f"{'='*50}")
+            
+            # Create vector extension
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                    conn.commit()
+                print("✓ Vector extension ready")
+            except Exception as e:
+                print(f"⚠ Vector extension: {str(e)[:100]}")
+            
+            # Create tables
+            try:
+                models.Base.metadata.create_all(bind=engine)
+                print("✓ Database tables ready")
+            except Exception as e:
+                print(f"⚠ Database tables: {str(e)[:100]}")
+            
+            print(f"{'='*50}")
+            print("✅ Database initialization complete!")
+            print(f"{'='*50}\n")
+            return
+            
+        except Exception as e:
+            print(f"❌ Initialization attempt {attempt + 1} failed: {str(e)[:100]}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                print("⚠ Database initialization failed after all retries")
+                print("App will continue running, but database features may not work")
+
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on application startup."""
-    print("=" * 50)
-    print("Starting Analyzer Backend...")
-    print("=" * 50)
-    
-    # Create vector extension with error handling
-    try:
-        print("Creating vector extension...")
-        with engine.connect() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            conn.commit()
-        print("✓ Vector extension ready")
-    except Exception as e:
-        print(f"⚠ Vector extension: {e}")
-    
-    # Create all tables
-    try:
-        print("Creating database tables...")
-        models.Base.metadata.create_all(bind=engine)
-        print("✓ Database tables ready")
-    except Exception as e:
-        print(f"⚠ Database tables: {e}")
-    
-    print("=" * 50)
-    print("✅ Backend initialization complete!")
-    print("=" * 50)
+    """Start database initialization in background."""
+    print("\n🚀 Starting Analyzer Backend...")
+    # Run initialization in background so it doesn't block startup
+    asyncio.create_task(initialize_database())
+    print("✓ Backend is ready to accept requests\n")
 
 app.add_middleware(
     CORSMiddleware,
