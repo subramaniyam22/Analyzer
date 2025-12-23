@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 from app import models, schemas, database, auth
-from app.database import engine, get_db
+from app.database import get_engine, get_db
 from app.auth import get_password_hash, verify_password, create_access_token, get_current_user, check_role
 from common.s3_utils import S3Service
 from worker.tasks import process_document
@@ -35,6 +35,8 @@ def ensure_db_initialized():
     
     try:
         print("Initializing database...")
+        engine = get_engine()  # Get the engine lazily
+        
         # Create vector extension
         try:
             with engine.connect() as conn:
