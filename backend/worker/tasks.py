@@ -1,6 +1,6 @@
 from worker.celery_app import celery_app
 from worker.extraction import extract_content
-from app.database import SessionLocal
+from app.database import get_session_local
 from app import models
 from app.openai_client import openai_client
 from common.s3_utils import S3Service
@@ -19,6 +19,7 @@ def get_embedding(text):
 
 @celery_app.task(name="process_document")
 def process_document(upload_id: int):
+    SessionLocal = get_session_local()
     db = SessionLocal()
     try:
         upload = db.query(models.Upload).filter(models.Upload.id == upload_id).first()
