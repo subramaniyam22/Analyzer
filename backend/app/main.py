@@ -16,7 +16,6 @@ import json
 from datetime import datetime, timedelta
 
 from sqlalchemy import text
-import asyncio
 
 app = FastAPI(title="Analyzer API")
 
@@ -25,54 +24,38 @@ app = FastAPI(title="Analyzer API")
 def health_check():
     return {"status": "healthy", "service": "analyzer-backend"}
 
-async def initialize_database():
-    """Initialize database with retries."""
-    max_retries = 5
-    retry_delay = 2
-    
-    for attempt in range(max_retries):
-        try:
-            print(f"\n{'='*50}")
-            print(f"Database initialization attempt {attempt + 1}/{max_retries}")
-            print(f"{'='*50}")
-            
-            # Create vector extension
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                    conn.commit()
-                print("✓ Vector extension ready")
-            except Exception as e:
-                print(f"⚠ Vector extension: {str(e)[:100]}")
-            
-            # Create tables
-            try:
-                models.Base.metadata.create_all(bind=engine)
-                print("✓ Database tables ready")
-            except Exception as e:
-                print(f"⚠ Database tables: {str(e)[:100]}")
-            
-            print(f"{'='*50}")
-            print("✅ Database initialization complete!")
-            print(f"{'='*50}\n")
-            return
-            
-        except Exception as e:
-            print(f"❌ Initialization attempt {attempt + 1} failed: {str(e)[:100]}")
-            if attempt < max_retries - 1:
-                print(f"Retrying in {retry_delay} seconds...")
-                await asyncio.sleep(retry_delay)
-            else:
-                print("⚠ Database initialization failed after all retries")
-                print("App will continue running, but database features may not work")
+# Lazy database initialization - only runs on first database access
+_db_initialized = False
 
-@app.on_event("startup")
-async def startup_event():
-    """Start database initialization in background."""
-    print("\n🚀 Starting Analyzer Backend...")
-    # Run initialization in background so it doesn't block startup
-    asyncio.create_task(initialize_database())
-    print("✓ Backend is ready to accept requests\n")
+def ensure_db_initialized():
+    """Ensure database is initialized. Called before first database operation."""
+    global _db_initialized
+    if _db_initialized:
+        return
+    
+    try:
+        print("Initializing database...")
+        # Create vector extension
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                conn.commit()
+            print("✓ Vector extension ready")
+        except Exception as e:
+            print(f"⚠ Vector extension: {str(e)[:100]}")
+        
+        # Create tables
+        try:
+            models.Base.metadata.create_all(bind=engine)
+            print("✓ Database tables ready")
+        except Exception as e:
+            print(f"⚠ Database tables: {str(e)[:100]}")
+        
+        _db_initialized = True
+        print("✅ Database initialized")
+    except Exception as e:
+        print(f"❌ Database initialization failed: {str(e)[:200]}")
+        # Don't set _db_initialized = True, so it will retry on next request
 
 app.add_middleware(
     CORSMiddleware,
@@ -86,6 +69,9 @@ app.add_middleware(
 
 @app.post("/auth/register", response_model=schemas.User)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Initialize database on first registration attempt
+    ensure_db_initialized()
+    
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
