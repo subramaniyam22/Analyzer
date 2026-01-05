@@ -4,10 +4,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Get Redis URL from environment
+redis_url = os.getenv("REDIS_URL")
+
+if not redis_url:
+    print("WARNING: REDIS_URL not set, using default localhost")
+    redis_url = "redis://localhost:6379/0"
+
+# Render's Redis URL might need SSL for external connections
+# Internal connections use redis:// format
+print(f"Celery connecting to Redis: {redis_url[:30]}...")
+
 celery_app = Celery(
     "worker",
-    broker=os.getenv("REDIS_URL"),
-    backend=os.getenv("REDIS_URL"),
+    broker=redis_url,
+    backend=redis_url,
 )
 
 celery_app.conf.update(
@@ -16,6 +27,9 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # Add broker connection retry settings
+    broker_connection_retry_on_startup=True,
+    broker_connection_max_retries=10,
 )
 
 celery_app.autodiscover_tasks(["worker.tasks"])
