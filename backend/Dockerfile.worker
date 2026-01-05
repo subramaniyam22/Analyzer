@@ -12,6 +12,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Use PORT env variable (provided by Render) or default to 8000
-ENV PORT=8000
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Celery worker command
+CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info"]
