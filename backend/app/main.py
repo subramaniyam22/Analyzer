@@ -37,27 +37,51 @@ def ensure_db_initialized():
         print("Initializing database...")
         engine = get_engine()  # Get the engine lazily
         
-        # Create vector extension
+        # Create vector extension (required for pgvector)
+        vector_available = False
         try:
             with engine.connect() as conn:
                 conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
                 conn.commit()
+            vector_available = True
             print("✓ Vector extension ready")
         except Exception as e:
-            print(f"⚠ Vector extension: {str(e)[:100]}")
+            print(f"⚠ Vector extension not available: {str(e)[:100]}")
+            print("⚠ RAG features will be disabled")
         
-        # Create tables
+        # Create tables - try to create all, but handle vector table failures
         try:
+            # First create non-vector tables by filtering metadata
+            from sqlalchemy import MetaData, Table
+            
+            # Create all tables - SQLAlchemy will handle dependencies
             models.Base.metadata.create_all(bind=engine)
             print("✓ Database tables ready")
         except Exception as e:
-            print(f"⚠ Database tables: {str(e)[:100]}")
+            error_msg = str(e)
+            print(f"⚠ Some tables may have failed: {error_msg[:200]}")
+            
+            # If vector table failed, try creating just the core tables
+            if "vector" in error_msg.lower() or "type" in error_msg.lower():
+                print("Attempting to create core tables without vector...")
+                try:
+                    # Create tables one by one, skipping vector-dependent ones
+                    for table in models.Base.metadata.sorted_tables:
+                        if table.name != "extracted_chunks":  # Skip vector table
+                            try:
+                                table.create(engine, checkfirst=True)
+                            except Exception as table_error:
+                                print(f"  ⚠ Table {table.name}: {str(table_error)[:50]}")
+                    print("✓ Core tables created")
+                except Exception as core_error:
+                    print(f"❌ Core tables failed: {str(core_error)[:100]}")
         
         _db_initialized = True
         print("✅ Database initialized")
     except Exception as e:
         print(f"❌ Database initialization failed: {str(e)[:200]}")
         # Don't set _db_initialized = True, so it will retry on next request
+        raise  # Re-raise to see the full error
 
 app.add_middleware(
     CORSMiddleware,

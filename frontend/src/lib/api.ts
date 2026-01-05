@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const apiUrl = "/api";
+// Use the public backend URL if available, otherwise fallback to /api proxy
+const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
 
 const api = axios.create({
     baseURL: apiUrl,
