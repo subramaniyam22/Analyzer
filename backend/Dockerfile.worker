@@ -12,5 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Set PYTHONPATH so Python can find all modules
+ENV PYTHONPATH=/app
+
 # Celery worker command
 CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info"]
