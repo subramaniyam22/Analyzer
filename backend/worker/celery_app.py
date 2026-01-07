@@ -30,6 +30,10 @@ celery_app.conf.update(
     # Add broker connection retry settings
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=10,
+    # Memory optimization settings
+    worker_prefetch_multiplier=1,  # Don't prefetch tasks (saves memory)
+    task_acks_late=True,  # Acknowledge after task completes
+    worker_max_tasks_per_child=5,  # Restart worker after 5 tasks to free memory
 )
 
 celery_app.autodiscover_tasks(["worker.tasks"])

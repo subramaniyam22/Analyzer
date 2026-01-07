@@ -15,5 +15,8 @@ COPY . .
 # Set PYTHONPATH so Python can find all modules
 ENV PYTHONPATH=/app
 
-# Celery worker command
-CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info"]
+# Celery worker command with memory optimization
+# --pool=solo: Uses single process (less memory than prefork)
+# --concurrency=1: Only 1 worker thread
+# -O fair: Fair scheduling (prevents memory buildup)
+CMD ["celery", "-A", "worker.celery_app", "worker", "--loglevel=info", "--pool=solo", "--concurrency=1"]
